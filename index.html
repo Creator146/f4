@@ -206,6 +206,17 @@
   .fill.ultra{ background:linear-gradient(90deg, rgba(0,255,255,1), rgba(0,160,255,1)); }
   .fill.normal{ background:linear-gradient(90deg, rgba(255,180,0,1), rgba(255,90,0,1)); }
 
+
+
+  #menuBtn{
+    position:fixed;right:12px;bottom:12px;z-index:72;
+    pointer-events:auto;border:1px solid rgba(255,255,255,.16);
+    background:rgba(0,0,0,.55);backdrop-filter: blur(8px);color:#fff;
+    border-radius:14px;padding:10px 12px;font-weight:1000;cursor:pointer;
+    box-shadow:0 10px 24px rgba(0,0,0,.35);display:none;
+  }
+  #menuBtn:active{transform:scale(.98)}
+
 </style>
 </head>
 <body>
@@ -238,6 +249,8 @@
   <label>Quality <input id="qual" type="range" min="50" max="200" value="130" /></label>
   <div class="mini">If it lags, lower “Quality”.</div>
 </div>
+
+<button id="menuBtn" type="button">Menu</button>
 
 <div id="menu">
   <div class="panel">
@@ -475,7 +488,7 @@ const $ = (id)=>document.getElementById(id);
 const elSpeed=$("speed"), elLap=$("lap"), elLaps=$("laps"), elTime=$("time"), elBest=$("best"), elView=$("view");
 const elCR=$("cr"), menuCR=$("menuCR"), toast=$("toast");
 const tiltBox=$("tilt"), soundBox=$("sound"), camSmooth=$("cams"), qual=$("qual");
-const menu=$("menu"), btnPlay=$("btnPlay"), btnResetSave=$("btnResetSave");
+const menu=$("menu"), btnPlay=$("btnPlay"), btnResetSave=$("btnResetSave"), menuBtn=$("menuBtn");
 const carsWrap=$("cars");
 const botsRange=$("bots"), botCountLabel=$("botCountLabel");
 const lapsSet=$("lapsSet"), lapsLabel=$("lapsLabel");
@@ -621,6 +634,12 @@ function rebuildMenuUI(){
   modeLabel.textContent = (modeSel.value|0)===0 ? "Quick" : "Champ";
 }
 rebuildMenuUI();
+
+function syncMenuButton(){
+  if(!menuBtn) return;
+  menuBtn.style.display = (state==="run" || state==="pause" || state==="countdown") ? "block" : "none";
+}
+
 botsRange.addEventListener("input", ()=> botCountLabel.textContent=String(botsRange.value|0));
 lapsSet.addEventListener("input", ()=> lapsLabel.textContent=String(lapsSet.value|0));
 modeSel.addEventListener("input", ()=>{ modeLabel.textContent=((modeSel.value|0)===0?"Quick":"Champ"); });
@@ -2211,6 +2230,7 @@ addEventListener("keydown",(e)=>{
    Race state (NO checkpoints) — laps by track progress wrap
 ========================= */
 let state="menu"; // menu | countdown | run | pause
+syncMenuButton();
 let raining=false; let rainT=0;
 let lapsTotal=3;
 let lap=1;
@@ -2278,12 +2298,14 @@ function togglePause(){
     state="pause";
     pausedAt=performance.now();
     menu.style.display="flex";
+    syncMenuButton();
     toastMsg("Paused");
   }else if(state==="pause"){
     state="run";
     const pausedFor=performance.now()-pausedAt;
     tStart += pausedFor;
     menu.style.display="none";
+    syncMenuButton();
   }
 }
 
@@ -2315,6 +2337,7 @@ function prepareRun(){
     lapsLabel.textContent = String(race.laps);
   }
   menu.style.display = "none";
+  syncMenuButton();
   state = "run"; // temporarily for reset
   resetRun();
   seedBots(botsRange.value|0);
@@ -2377,6 +2400,7 @@ function updateCountdown(now){
   if(phase>=7){
     hideStartLights();
     state="run";
+    syncMenuButton();
     tStart = performance.now();
   }
 }
@@ -2430,10 +2454,20 @@ function showResults(data){
 }
 function hideResults(){ results.style.display="none"; }
 
+menuBtn?.addEventListener("pointerdown", ()=>{
+  hideResults();
+  state="menu";
+  menu.style.display="flex";
+  soundStop?.();
+  syncMenuButton();
+  rebuildMenuUI();
+});
+
 btnResMenu.addEventListener("pointerdown", ()=>{
   hideResults();
   state="menu";
   menu.style.display="flex";
+  syncMenuButton();
   rebuildMenuUI();
 });
 btnResNext.addEventListener("pointerdown", ()=>{
@@ -2448,6 +2482,7 @@ btnResNext.addEventListener("pointerdown", ()=>{
       toastMsg("CHAMPION! +CR");
       state="menu";
       menu.style.display="flex";
+      syncMenuButton();
       rebuildMenuUI();
       return;
     }else{
@@ -2461,6 +2496,7 @@ btnResNext.addEventListener("pointerdown", ()=>{
 function finishRace(){
   state="pause";
   menu.style.display="flex";
+  syncMenuButton();
 
   const t=(performance.now()-tStart)/1000;
   if(best===null || t<best) best=t;
@@ -2737,198 +2773,6 @@ menuCR.textContent=String(Math.floor(SAVE.cr));
 elCR.textContent=String(Math.floor(SAVE.cr));
 elBest.textContent=(best===null)?"--":best.toFixed(2)+"s";
 
-
-
-/* =========================
-   Ranked/Public/Private compatibility patch
-========================= */
-var rankedSearching = false;
-var rankedActive = false;
-var rankedRoom = null;
-var rankedFinishSent = false;
-
-function ensureLeagueSave(){
-  if(typeof SAVE !== "object" || !SAVE) return;
-  if(typeof SAVE.driverName !== "string" || !SAVE.driverName.trim()) SAVE.driverName = "Driver" + Math.floor(Math.random()*900+100);
-  if(typeof SAVE.leagueRating !== "number") SAVE.leagueRating = 1000;
-  if(typeof SAVE.rankWins !== "number") SAVE.rankWins = 0;
-  if(typeof SAVE.rankLosses !== "number") SAVE.rankLosses = 0;
-}
-ensureLeagueSave();
-
-function rankFromRating(r){
-  if(r >= 1800) return "Legend";
-  if(r >= 1500) return "Elite";
-  if(r >= 1250) return "Gold";
-  if(r >= 1050) return "Silver";
-  return "Bronze";
-}
-
-let leagueUIBuilt = false;
-let driverNameEl = null, leagueRatingEl = null, leagueRankEl = null, leagueWLel = null;
-let queueHintEl = null, matchHintEl = null, queueOppEl = null;
-let btnQueueLeague = null, btnCancelLeague = null;
-
-function buildLeagueUI(){
-  if(leagueUIBuilt) return;
-  const raceCard = Array.from(document.querySelectorAll('#menu .card')).find(c => /Race Setup/i.test(c.querySelector('h4')?.textContent || ""));
-  if(!raceCard) return;
-  const wrap = document.createElement('div');
-  wrap.innerHTML = `
-    <h4 style="margin-top:14px">Ranked League</h4>
-    <div class="miniTxt">Public worldwide queue. Also keep Public Lobby and private PIN rooms.</div>
-    <div class="shopLine">
-      <div>
-        <b>Driver</b>
-        <div class="miniTxt">Your public ranked name.</div>
-      </div>
-      <div class="right" style="flex-wrap:wrap;justify-content:flex-end">
-        <input id="driverNameInput" class="btn btn2" style="padding:9px 10px;border-radius:12px;width:160px;max-width:42vw;text-align:left" />
-      </div>
-    </div>
-    <div class="shopLine">
-      <div>
-        <b>League</b>
-        <div class="miniTxt" id="queueHintEl">Press Queue League to search.</div>
-      </div>
-      <div class="right">
-        <span class="pill"><small>Rank</small> <b id="leagueRankEl">Bronze</b></span>
-        <span class="pill"><small>Rating</small> <b id="leagueRatingEl">1000</b></span>
-        <span class="pill"><small>W-L</small> <b id="leagueWLel">0-0</b></span>
-      </div>
-    </div>
-    <div class="shopLine">
-      <div>
-        <b>Queue</b>
-        <div class="miniTxt" id="matchHintEl">Needs 3 real players to start.</div>
-      </div>
-      <div class="right" style="flex-wrap:wrap;justify-content:flex-end">
-        <button class="btn" id="btnQueueLeague">Queue League</button>
-        <button class="btn btn2" id="btnCancelLeague">Cancel Queue</button>
-      </div>
-    </div>
-    <div class="shopLine">
-      <div>
-        <b>Matched Players</b>
-        <div class="miniTxt" id="queueOppEl">—</div>
-      </div>
-      <div class="right">
-        <span class="pill"><small>Status</small> <b id="rankStateLbl">Idle</b></span>
-      </div>
-    </div>
-  `;
-  raceCard.appendChild(wrap);
-  driverNameEl = document.getElementById('driverNameInput');
-  leagueRatingEl = document.getElementById('leagueRatingEl');
-  leagueRankEl = document.getElementById('leagueRankEl');
-  leagueWLel = document.getElementById('leagueWLel');
-  queueHintEl = document.getElementById('queueHintEl');
-  matchHintEl = document.getElementById('matchHintEl');
-  queueOppEl = document.getElementById('queueOppEl');
-  btnQueueLeague = document.getElementById('btnQueueLeague');
-  btnCancelLeague = document.getElementById('btnCancelLeague');
-  const rankStateLbl = document.getElementById('rankStateLbl');
-
-  driverNameEl.value = SAVE.driverName || "";
-  driverNameEl.addEventListener('change', ()=>{
-    SAVE.driverName = (driverNameEl.value || "").trim().slice(0,18) || SAVE.driverName || "Driver";
-    try{ saveNow("Driver saved"); }catch{}
-    renderLeagueUI();
-    try{ mpSendProfile(); }catch{}
-  });
-  btnQueueLeague.addEventListener('click', (e)=>{ e.preventDefault(); queueLeague(); });
-  btnCancelLeague.addEventListener('click', (e)=>{ e.preventDefault(); cancelLeagueQueue(); });
-
-  const oldRender = window.renderLeagueStateText;
-  window.renderLeagueStateText = function(){
-    if(!rankStateLbl) return;
-    rankStateLbl.textContent = rankedActive ? "Matched" : (rankedSearching ? "Searching" : "Idle");
-    if(typeof oldRender === "function") oldRender();
-  };
-
-  leagueUIBuilt = true;
-  renderLeagueUI();
-}
-function renderLeagueUI(){
-  ensureLeagueSave();
-  if(!leagueUIBuilt) return;
-  if(driverNameEl && document.activeElement !== driverNameEl) driverNameEl.value = SAVE.driverName || "";
-  if(leagueRatingEl) leagueRatingEl.textContent = String(SAVE.leagueRating|0);
-  if(leagueRankEl) leagueRankEl.textContent = rankFromRating(SAVE.leagueRating|0);
-  if(leagueWLel) leagueWLel.textContent = `${SAVE.rankWins|0}-${SAVE.rankLosses|0}`;
-  if(queueHintEl && !rankedSearching && !rankedActive && !queueHintEl.textContent.trim()) queueHintEl.textContent = "Press Queue League to search.";
-  if(matchHintEl && !rankedSearching && !rankedActive && !matchHintEl.textContent.trim()) matchHintEl.textContent = "Needs 3 real players to start.";
-  if(typeof window.renderLeagueStateText === "function") window.renderLeagueStateText();
-}
-buildLeagueUI();
-renderLeagueUI();
-
-const __oldRebuildMenuUI = typeof rebuildMenuUI === "function" ? rebuildMenuUI : null;
-if(__oldRebuildMenuUI){
-  rebuildMenuUI = function(...args){
-    const r = __oldRebuildMenuUI.apply(this, args);
-    buildLeagueUI();
-    renderLeagueUI();
-    return r;
-  };
-}
-
-function mpSendProfile(){
-  ensureLeagueSave();
-  if(!mp?.ws || mp.ws.readyState !== 1) return;
-  mp.ws.send(JSON.stringify({
-    t: "profile",
-    profile: {
-      name: (SAVE.driverName || "Driver").slice(0,18),
-      rating: SAVE.leagueRating|0,
-      wins: SAVE.rankWins|0,
-      losses: SAVE.rankLosses|0
-    }
-  }));
-}
-
-async function queueLeague(){
-  const url = mpServer?.value?.trim();
-  try{
-    await mpConnect(url);
-    mpSendProfile();
-    rankedSearching = true;
-    rankedActive = false;
-    rankedRoom = null;
-    rankedFinishSent = false;
-    if(queueHintEl) queueHintEl.textContent = "Searching public ranked queue…";
-    if(matchHintEl) matchHintEl.textContent = "Waiting for 3 real players";
-    if(queueOppEl) queueOppEl.textContent = "—";
-    renderLeagueUI();
-    mp.ws?.send(JSON.stringify({t:"queue_ranked"}));
-  }catch{
-    if(queueHintEl) queueHintEl.textContent = "Could not connect";
-  }
-}
-function cancelLeagueQueue(){
-  rankedSearching = false;
-  if(queueHintEl) queueHintEl.textContent = "Queue cancelled";
-  if(matchHintEl) matchHintEl.textContent = "Needs 3 real players to start.";
-  renderLeagueUI();
-  try{ mp.ws?.send(JSON.stringify({t:"cancel_ranked"})); }catch{}
-}
-
-const __oldShowResults = typeof showResults === "function" ? showResults : null;
-if(__oldShowResults){
-  showResults = function(data){
-    const out = __oldShowResults.apply(this, arguments);
-    if(rankedActive && !rankedFinishSent){
-      rankedFinishSent = true;
-      try{
-        mp.ws?.send(JSON.stringify({
-          t: "ranked_finish",
-          place: data?.pos || 3
-        }));
-      }catch{}
-    }
-    return out;
-  };
-}
 
 </script>
 </body>
