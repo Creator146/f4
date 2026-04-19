@@ -605,6 +605,9 @@ const DEFAULT_SAVE = {
 };
 
 let SAVE = loadSave();
+let rankedSearching = false;
+let rankedActive = false;
+let rankedRoom = null;
 function loadSave(){
   try{
     const raw=localStorage.getItem(SAVE_KEY);
@@ -1066,9 +1069,6 @@ mpCreate?.addEventListener("click", (e)=>{ e.preventDefault(); mpCreateRoom(); }
 mpJoin?.addEventListener("click", (e)=>{ e.preventDefault(); mpJoinRoom(); });
 mpLeave?.addEventListener("click", (e)=>{ e.preventDefault(); mpLeaveRoom(); });
 
-let rankedSearching = false;
-let rankedActive = false;
-let rankedRoom = null;
 function rankedQueue(){
   const url = mpServer?.value?.trim();
   const connectAndQueue = async ()=>{
