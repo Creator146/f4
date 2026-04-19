@@ -206,17 +206,6 @@
   .fill.ultra{ background:linear-gradient(90deg, rgba(0,255,255,1), rgba(0,160,255,1)); }
   .fill.normal{ background:linear-gradient(90deg, rgba(255,180,0,1), rgba(255,90,0,1)); }
 
-
-
-  #menuBtn{
-    position:fixed;right:12px;bottom:12px;z-index:72;
-    pointer-events:auto;border:1px solid rgba(255,255,255,.16);
-    background:rgba(0,0,0,.55);backdrop-filter: blur(8px);color:#fff;
-    border-radius:14px;padding:10px 12px;font-weight:1000;cursor:pointer;
-    box-shadow:0 10px 24px rgba(0,0,0,.35);display:none;
-  }
-  #menuBtn:active{transform:scale(.98)}
-
 </style>
 </head>
 <body>
@@ -249,8 +238,6 @@
   <label>Quality <input id="qual" type="range" min="50" max="200" value="130" /></label>
   <div class="mini">If it lags, lower “Quality”.</div>
 </div>
-
-<button id="menuBtn" type="button">Menu</button>
 
 <div id="menu">
   <div class="panel">
@@ -488,7 +475,7 @@ const $ = (id)=>document.getElementById(id);
 const elSpeed=$("speed"), elLap=$("lap"), elLaps=$("laps"), elTime=$("time"), elBest=$("best"), elView=$("view");
 const elCR=$("cr"), menuCR=$("menuCR"), toast=$("toast");
 const tiltBox=$("tilt"), soundBox=$("sound"), camSmooth=$("cams"), qual=$("qual");
-const menu=$("menu"), btnPlay=$("btnPlay"), btnResetSave=$("btnResetSave"), menuBtn=$("menuBtn");
+const menu=$("menu"), btnPlay=$("btnPlay"), btnResetSave=$("btnResetSave");
 const carsWrap=$("cars");
 const botsRange=$("bots"), botCountLabel=$("botCountLabel");
 const lapsSet=$("lapsSet"), lapsLabel=$("lapsLabel");
@@ -634,12 +621,6 @@ function rebuildMenuUI(){
   modeLabel.textContent = (modeSel.value|0)===0 ? "Quick" : "Champ";
 }
 rebuildMenuUI();
-
-function syncMenuButton(){
-  if(!menuBtn) return;
-  menuBtn.style.display = (state==="run" || state==="pause" || state==="countdown") ? "block" : "none";
-}
-
 botsRange.addEventListener("input", ()=> botCountLabel.textContent=String(botsRange.value|0));
 lapsSet.addEventListener("input", ()=> lapsLabel.textContent=String(lapsSet.value|0));
 modeSel.addEventListener("input", ()=>{ modeLabel.textContent=((modeSel.value|0)===0?"Quick":"Champ"); });
@@ -2230,7 +2211,6 @@ addEventListener("keydown",(e)=>{
    Race state (NO checkpoints) — laps by track progress wrap
 ========================= */
 let state="menu"; // menu | countdown | run | pause
-syncMenuButton();
 let raining=false; let rainT=0;
 let lapsTotal=3;
 let lap=1;
@@ -2298,14 +2278,12 @@ function togglePause(){
     state="pause";
     pausedAt=performance.now();
     menu.style.display="flex";
-    syncMenuButton();
     toastMsg("Paused");
   }else if(state==="pause"){
     state="run";
     const pausedFor=performance.now()-pausedAt;
     tStart += pausedFor;
     menu.style.display="none";
-    syncMenuButton();
   }
 }
 
@@ -2337,7 +2315,6 @@ function prepareRun(){
     lapsLabel.textContent = String(race.laps);
   }
   menu.style.display = "none";
-  syncMenuButton();
   state = "run"; // temporarily for reset
   resetRun();
   seedBots(botsRange.value|0);
@@ -2400,7 +2377,6 @@ function updateCountdown(now){
   if(phase>=7){
     hideStartLights();
     state="run";
-    syncMenuButton();
     tStart = performance.now();
   }
 }
@@ -2454,20 +2430,10 @@ function showResults(data){
 }
 function hideResults(){ results.style.display="none"; }
 
-menuBtn?.addEventListener("pointerdown", ()=>{
-  hideResults();
-  state="menu";
-  menu.style.display="flex";
-  soundStop?.();
-  syncMenuButton();
-  rebuildMenuUI();
-});
-
 btnResMenu.addEventListener("pointerdown", ()=>{
   hideResults();
   state="menu";
   menu.style.display="flex";
-  syncMenuButton();
   rebuildMenuUI();
 });
 btnResNext.addEventListener("pointerdown", ()=>{
@@ -2482,7 +2448,6 @@ btnResNext.addEventListener("pointerdown", ()=>{
       toastMsg("CHAMPION! +CR");
       state="menu";
       menu.style.display="flex";
-      syncMenuButton();
       rebuildMenuUI();
       return;
     }else{
@@ -2496,7 +2461,6 @@ btnResNext.addEventListener("pointerdown", ()=>{
 function finishRace(){
   state="pause";
   menu.style.display="flex";
-  syncMenuButton();
 
   const t=(performance.now()-tStart)/1000;
   if(best===null || t<best) best=t;
